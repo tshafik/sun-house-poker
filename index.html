@@ -1,0 +1,1204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sun House Poker — ELO Rankings</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    /* ── Reset & Base ─────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:          #0d0b07;
+      --card:        #181510;
+      --card2:       #1e1b0e;
+      --gold:        #c9a227;
+      --gold-muted:  #6a5a18;
+      --gold-dim:    #3a2e08;
+      --text:        #ede6d0;
+      --muted:       #7a7060;
+      --red:         #e05555;
+      --border:      #2a2510;
+      --radius:      10px;
+      --radius-lg:   16px;
+    }
+
+    html { font-size: 15px; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+
+    /* ── Scrollbar ────────────────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--gold-muted); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--gold); }
+
+    /* ── Layout ───────────────────────────────────────────────────────── */
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 0 16px 60px;
+    }
+
+    /* ── Header ───────────────────────────────────────────────────────── */
+    header {
+      padding: 28px 0 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 28px;
+    }
+
+    .header-left { display: flex; flex-direction: row; align-items: center; gap: 14px; }
+    .header-text { display: flex; flex-direction: column; gap: 2px; }
+
+    .sunflower-logo {
+      width: 52px;
+      height: 52px;
+      flex-shrink: 0;
+      filter: drop-shadow(0 0 10px rgba(201,162,39,.5));
+    }
+
+    .buyin-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: rgba(201,162,39,.1);
+      border: 1px solid rgba(201,162,39,.3);
+      border-radius: 8px;
+      padding: 3px 10px;
+      font-size: .65rem;
+      font-weight: 700;
+      letter-spacing: .12em;
+      color: var(--gold);
+      text-transform: uppercase;
+      margin-top: 4px;
+    }
+
+    .site-title {
+      font-size: 1.9rem;
+      font-weight: 800;
+      letter-spacing: .04em;
+      color: var(--gold);
+      text-shadow: 0 0 28px rgba(201,162,39,.35);
+    }
+
+    .site-subtitle {
+      font-size: .65rem;
+      font-weight: 700;
+      letter-spacing: .18em;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .clock {
+      font-size: .78rem;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    /* ── Buttons ──────────────────────────────────────────────────────── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 18px;
+      border-radius: var(--radius);
+      font-size: .82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .18s ease;
+      border: none;
+      outline: none;
+    }
+
+    .btn-ghost {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+    .btn-ghost:hover { border-color: var(--gold-muted); color: var(--text); }
+
+    .btn-primary {
+      background: var(--gold);
+      color: #0d0b07;
+      letter-spacing: .03em;
+    }
+    .btn-primary:hover { background: #dbb42f; box-shadow: 0 0 18px rgba(201,162,39,.4); }
+
+    .btn-danger {
+      background: transparent;
+      border: 1px solid #4a2020;
+      color: var(--red);
+      padding: 5px 12px;
+      font-size: .78rem;
+    }
+    .btn-danger:hover { background: rgba(224,85,85,.12); }
+
+    .btn-dashed {
+      background: transparent;
+      border: 1.5px dashed var(--gold-muted);
+      color: var(--gold-muted);
+      width: 100%;
+      justify-content: center;
+      padding: 10px;
+      border-radius: var(--radius);
+      font-size: .82rem;
+    }
+    .btn-dashed:hover { border-color: var(--gold); color: var(--gold); }
+
+    /* ── Stats Row ────────────────────────────────────────────────────── */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+      margin-bottom: 28px;
+    }
+
+    .stat-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 20px 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .stat-label {
+      font-size: .68rem;
+      font-weight: 700;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .stat-value {
+      font-size: 1.6rem;
+      font-weight: 800;
+      color: var(--gold);
+      line-height: 1.1;
+    }
+
+    .stat-sub {
+      font-size: .75rem;
+      color: var(--muted);
+    }
+
+    /* ── Tabs ─────────────────────────────────────────────────────────── */
+    .tabs {
+      display: flex;
+      gap: 4px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 4px;
+      margin-bottom: 22px;
+      width: fit-content;
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      padding: 8px 20px;
+      border-radius: 7px;
+      cursor: pointer;
+      font-size: .85rem;
+      font-weight: 600;
+      transition: all .18s ease;
+      white-space: nowrap;
+    }
+
+    .tab-btn.active {
+      background: var(--gold);
+      color: #0d0b07;
+    }
+
+    .tab-btn:not(.active):hover { color: var(--text); }
+
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* ── Cards ────────────────────────────────────────────────────────── */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      margin-bottom: 18px;
+    }
+
+    .card-title {
+      font-size: .72rem;
+      font-weight: 700;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 18px;
+    }
+
+    /* ── Leaderboard ──────────────────────────────────────────────────── */
+    .leaderboard { display: flex; flex-direction: column; gap: 10px; }
+
+    .lb-row {
+      display: grid;
+      grid-template-columns: 32px 1fr auto;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .lb-rank {
+      font-size: 1rem;
+      font-weight: 800;
+      text-align: center;
+      color: var(--muted);
+      min-width: 28px;
+    }
+
+    .lb-rank.medal { font-size: 1.2rem; }
+
+    .lb-info { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+
+    .lb-name {
+      font-size: .9rem;
+      font-weight: 600;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .lb-bar-track {
+      height: 5px;
+      background: var(--gold-dim);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .lb-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--gold-muted), var(--gold));
+      border-radius: 3px;
+      transition: width .6s cubic-bezier(.4,0,.2,1);
+    }
+
+    .lb-elo {
+      font-size: .9rem;
+      font-weight: 700;
+      color: var(--gold);
+      white-space: nowrap;
+    }
+
+    /* ── Chart containers ─────────────────────────────────────────────── */
+    .chart-wrap {
+      position: relative;
+      height: 260px;
+    }
+
+    /* ── Game Cards ───────────────────────────────────────────────────── */
+    .game-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      margin-bottom: 14px;
+      overflow: hidden;
+    }
+
+    .game-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      cursor: pointer;
+      user-select: none;
+      transition: background .15s;
+    }
+
+    .game-card-header:hover { background: rgba(201,162,39,.05); }
+
+    .game-card-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .game-number {
+      font-size: .95rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .player-count {
+      font-size: .72rem;
+      color: var(--muted);
+      background: var(--card2);
+      padding: 2px 8px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+    }
+
+    .date-badge {
+      font-size: .72rem;
+      font-weight: 600;
+      color: var(--gold);
+      background: var(--gold-dim);
+      padding: 3px 10px;
+      border-radius: 20px;
+      border: 1px solid var(--gold-muted);
+    }
+
+    .toggle-arrow {
+      font-size: .75rem;
+      color: var(--muted);
+      transition: transform .22s;
+    }
+
+    .toggle-arrow.open { transform: rotate(180deg); }
+
+    .game-card-body {
+      display: none;
+      padding: 0 20px 16px;
+      border-top: 1px solid var(--border);
+    }
+
+    .game-card-body.open { display: block; }
+
+    /* ── Tables ───────────────────────────────────────────────────────── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+    }
+
+    th {
+      font-size: .65rem;
+      font-weight: 700;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      text-align: left;
+      padding: 0 0 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    th:not(:first-child), td:not(:first-child) { text-align: right; }
+
+    td {
+      padding: 9px 0 8px;
+      font-size: .84rem;
+      border-bottom: 1px solid rgba(42,37,16,.5);
+    }
+
+    tr:last-child td { border-bottom: none; }
+
+    .td-player { display: flex; align-items: center; gap: 8px; }
+
+    .winner-badge {
+      font-size: .6rem;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      background: var(--gold);
+      color: #0d0b07;
+      padding: 1px 6px;
+      border-radius: 4px;
+    }
+
+    .amt-gold  { color: var(--gold); font-weight: 600; }
+    .amt-red   { color: var(--red); font-weight: 600; }
+    .amt-white { color: var(--text); }
+
+    /* ── Modal ────────────────────────────────────────────────────────── */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.72);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      backdrop-filter: blur(3px);
+    }
+
+    .modal-overlay.open { display: flex; }
+
+    .modal {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      width: 100%;
+      max-width: 520px;
+      max-height: 90vh;
+      overflow-y: auto;
+      padding: 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .modal-title {
+      font-size: 1.1rem;
+      font-weight: 800;
+      color: var(--gold);
+    }
+
+    .form-group { display: flex; flex-direction: column; gap: 6px; }
+
+    .form-label {
+      font-size: .7rem;
+      font-weight: 700;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .form-input {
+      background: var(--card2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      padding: 9px 12px;
+      font-size: .88rem;
+      outline: none;
+      transition: border-color .15s;
+      width: 100%;
+    }
+
+    .form-input:focus { border-color: var(--gold-muted); }
+    .form-input::placeholder { color: var(--muted); }
+
+    .player-rows { display: flex; flex-direction: column; gap: 8px; }
+
+    .player-row {
+      display: grid;
+      grid-template-columns: 1fr 130px 34px;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      padding-top: 4px;
+    }
+
+    /* ── Error ────────────────────────────────────────────────────────── */
+    .error-msg {
+      font-size: .78rem;
+      color: var(--red);
+      background: rgba(224,85,85,.08);
+      border: 1px solid rgba(224,85,85,.2);
+      border-radius: 7px;
+      padding: 8px 12px;
+      display: none;
+    }
+
+    .error-msg.visible { display: block; }
+
+    /* ── Responsive ───────────────────────────────────────────────────── */
+    @media (max-width: 600px) {
+      .stats-row { grid-template-columns: 1fr 1fr; }
+      .stats-row .stat-card:first-child { grid-column: 1 / -1; }
+      .site-title { font-size: 1.4rem; }
+      .stat-value { font-size: 1.3rem; }
+      .player-row { grid-template-columns: 1fr 100px 30px; }
+      .chart-wrap { height: 200px; }
+    }
+
+    /* ── Divider ──────────────────────────────────────────────────────── */
+    .section-gap { margin-bottom: 22px; }
+
+    /* ── Empty state ──────────────────────────────────────────────────── */
+    .empty {
+      text-align: center;
+      color: var(--muted);
+      padding: 40px 0;
+      font-size: .9rem;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <!-- ── Header ─────────────────────────────────────────────────────── -->
+  <header>
+    <div class="header-left">
+      <!-- Sunflower SVG logo -->
+      <svg class="sunflower-logo" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <!-- Petals -->
+        <g fill="#c9a227">
+          <ellipse cx="50" cy="18" rx="6" ry="13" transform="rotate(0 50 50)"/>
+          <ellipse cx="50" cy="18" rx="6" ry="13" transform="rotate(45 50 50)"/>
+          <ellipse cx="50" cy="18" rx="6" ry="13" transform="rotate(90 50 50)"/>
+          <ellipse cx="50" cy="18" rx="6" ry="13" transform="rotate(135 50 50)"/>
+          <ellipse cx="50" cy="18" rx="6" ry="13" transform="rotate(180 50 50)"/>
+          <ellipse cx="50" cy="18" rx="6" ry="13" transform="rotate(225 50 50)"/>
+          <ellipse cx="50" cy="18" rx="6" ry="13" transform="rotate(270 50 50)"/>
+          <ellipse cx="50" cy="18" rx="6" ry="13" transform="rotate(315 50 50)"/>
+        </g>
+        <!-- Inner petals (smaller, offset) -->
+        <g fill="#e0b840" opacity="0.7">
+          <ellipse cx="50" cy="22" rx="4" ry="10" transform="rotate(22.5 50 50)"/>
+          <ellipse cx="50" cy="22" rx="4" ry="10" transform="rotate(67.5 50 50)"/>
+          <ellipse cx="50" cy="22" rx="4" ry="10" transform="rotate(112.5 50 50)"/>
+          <ellipse cx="50" cy="22" rx="4" ry="10" transform="rotate(157.5 50 50)"/>
+          <ellipse cx="50" cy="22" rx="4" ry="10" transform="rotate(202.5 50 50)"/>
+          <ellipse cx="50" cy="22" rx="4" ry="10" transform="rotate(247.5 50 50)"/>
+          <ellipse cx="50" cy="22" rx="4" ry="10" transform="rotate(292.5 50 50)"/>
+          <ellipse cx="50" cy="22" rx="4" ry="10" transform="rotate(337.5 50 50)"/>
+        </g>
+        <!-- Seed center -->
+        <circle cx="50" cy="50" r="18" fill="#3a2800"/>
+        <circle cx="50" cy="50" r="15" fill="#2a1e00"/>
+        <!-- Seed pattern dots -->
+        <g fill="#c9a227" opacity="0.6">
+          <circle cx="50" cy="38" r="2"/>
+          <circle cx="44" cy="41" r="2"/>
+          <circle cx="56" cy="41" r="2"/>
+          <circle cx="40" cy="48" r="2"/>
+          <circle cx="50" cy="46" r="2"/>
+          <circle cx="60" cy="48" r="2"/>
+          <circle cx="44" cy="55" r="2"/>
+          <circle cx="56" cy="55" r="2"/>
+          <circle cx="50" cy="60" r="2"/>
+        </g>
+      </svg>
+      <div class="header-text">
+        <span class="site-title">Sun House Poker</span>
+        <span class="site-subtitle">ELO Rankings Dashboard</span>
+        <span class="buyin-badge">⬟ Standard Buy-In: $480</span>
+      </div>
+    </div>
+    <div class="header-right">
+      <span class="clock" id="clock">Last updated —</span>
+      <button class="btn btn-ghost" onclick="refreshDashboard()">↺ Refresh</button>
+      <button class="btn btn-primary" onclick="openModal()">+ Add Game</button>
+    </div>
+  </header>
+
+  <!-- ── Stats Row ──────────────────────────────────────────────────── -->
+  <div class="stats-row">
+    <div class="stat-card">
+      <span class="stat-label">Top Player</span>
+      <span class="stat-value" id="stat-top-player">—</span>
+      <span class="stat-sub" id="stat-top-elo">ELO —</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Games Played</span>
+      <span class="stat-value" id="stat-games">0</span>
+      <span class="stat-sub">total sessions</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Players</span>
+      <span class="stat-value" id="stat-players">0</span>
+      <span class="stat-sub">unique players</span>
+    </div>
+  </div>
+
+  <!-- ── Tabs ───────────────────────────────────────────────────────── -->
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="rankings" onclick="switchTab('rankings', this)">🏆 ELO Rankings</button>
+    <button class="tab-btn" data-tab="games" onclick="switchTab('games', this)">🃏 Games</button>
+  </div>
+
+  <!-- ── Rankings Tab ───────────────────────────────────────────────── -->
+  <div class="tab-content active" id="tab-rankings">
+
+    <div class="card section-gap">
+      <div class="card-title">Leaderboard</div>
+      <div class="leaderboard" id="leaderboard"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">ELO Comparison</div>
+      <div class="chart-wrap">
+        <canvas id="barChart"></canvas>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── Games Tab ──────────────────────────────────────────────────── -->
+  <div class="tab-content" id="tab-games">
+
+    <div class="card section-gap">
+      <div class="card-title">ELO Over Time — Top Players</div>
+      <div class="chart-wrap">
+        <canvas id="lineChart"></canvas>
+      </div>
+    </div>
+
+    <div id="game-list"></div>
+
+  </div>
+
+</div><!-- /container -->
+
+<!-- ── Add Game Modal ─────────────────────────────────────────────── -->
+<div class="modal-overlay" id="modal-overlay" onclick="overlayClick(event)">
+  <div class="modal">
+    <div class="modal-title">+ Add New Game</div>
+
+    <div class="form-group">
+      <label class="form-label" for="game-date">Date</label>
+      <input type="date" class="form-input" id="game-date" />
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Players & Ending Amounts</label>
+      <div class="player-rows" id="player-rows"></div>
+      <button class="btn-dashed" onclick="addPlayerRow()" style="margin-top:6px; cursor:pointer; font-family:inherit; font-weight:600; transition: all .18s;">+ Add Player</button>
+    </div>
+
+    <div class="error-msg" id="form-error"></div>
+
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveGame()">Save Game</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── datalist for autocomplete ──────────────────────────────────── -->
+<datalist id="player-list"></datalist>
+
+<script>
+/* ════════════════════════════════════════════════════════════════════
+   Data & Constants
+════════════════════════════════════════════════════════════════════ */
+const STANDARD_BUY_IN = 480;
+const STORAGE_KEY = 'sunhouse_poker_games_v2';
+
+const SEED_GAMES = [
+  {
+    id: 'game_1',
+    date: '2026-04-09',
+    players: [
+      { name: 'Aamer',    endAmt: 255 },
+      { name: 'Hamid',    endAmt: 842 },
+      { name: 'White',    endAmt: 536 },
+      { name: 'Sally',    endAmt: 559 },
+      { name: 'Mahad',    endAmt: 536 },
+      { name: 'Imthiaz',  endAmt: 329 },
+      { name: 'Talha',    endAmt: 258 },
+    ]
+  },
+  {
+    id: 'game_2',
+    date: '2026-04-11',
+    players: [
+      { name: 'Aamer',             endAmt: 1188 },
+      { name: 'Hamid',             endAmt: 31   },
+      { name: 'White',             endAmt: 588  },
+      { name: 'Sally',             endAmt: 0    },
+      { name: 'Mahad',             endAmt: 0    },
+      { name: 'Yousuf (Nagasaki)', endAmt: 780  },
+      { name: 'Faisal',            endAmt: 723  },
+    ]
+  }
+];
+
+const LINE_COLORS = ['#c9a227','#7ab8f0','#f07a7a','#7ac990','#c47af0'];
+const BAR_PALETTE = [
+  'rgba(201,162,39,.6)',
+  'rgba(122,184,240,.6)',
+  'rgba(240,122,122,.6)',
+  'rgba(122,201,144,.6)',
+  'rgba(196,122,240,.6)',
+  'rgba(240,196,122,.6)',
+  'rgba(122,240,220,.6)',
+  'rgba(240,122,196,.6)',
+  'rgba(160,240,122,.6)',
+  'rgba(122,140,240,.6)',
+];
+
+/* ════════════════════════════════════════════════════════════════════
+   Storage
+════════════════════════════════════════════════════════════════════ */
+function loadGames() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch(e) {}
+  // seed
+  const games = SEED_GAMES.map(g => ({ ...g, players: g.players.map(p => ({ ...p })) }));
+  saveGames(games);
+  return games;
+}
+
+function saveGames(games) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(games));
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   ELO Computation
+════════════════════════════════════════════════════════════════════ */
+/**
+ * Returns { playerName -> currentELO } after all games (chronological order).
+ * Also returns eloHistory: [ { date, playerName, elo } ] for the line chart.
+ */
+function computeELO(games) {
+  // sort games by date ascending
+  const sorted = [...games].sort((a, b) => a.date.localeCompare(b.date));
+
+  // running totals: playerName -> { sumAmt, count }
+  const acc = {};
+  const eloByGame = []; // [{gameIndex, date, playerElos: {name->elo}}]
+
+  for (const game of sorted) {
+    const snapshot = {};
+    for (const p of game.players) {
+      const name = p.name;
+      if (!acc[name]) acc[name] = { sumAmt: 0, count: 0 };
+      acc[name].sumAmt += p.endAmt;
+      acc[name].count  += 1;
+      const elo = (acc[name].sumAmt + STANDARD_BUY_IN) / (acc[name].count + 1);
+      snapshot[name] = +elo.toFixed(1);
+    }
+    eloByGame.push({ date: game.date, playerElos: snapshot });
+  }
+
+  // final ELO = latest snapshot value for each player
+  const finalElo = {};
+  for (const snap of eloByGame) {
+    for (const [name, elo] of Object.entries(snap.playerElos)) {
+      finalElo[name] = elo;
+    }
+  }
+
+  return { finalElo, eloByGame, sortedGames: sorted };
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Derived stats
+════════════════════════════════════════════════════════════════════ */
+function buildRankings(finalElo) {
+  return Object.entries(finalElo)
+    .map(([name, elo]) => ({ name, elo }))
+    .sort((a, b) => b.elo - a.elo);
+}
+
+function allPlayers(games) {
+  const s = new Set();
+  for (const g of games) g.players.forEach(p => s.add(p.name));
+  return [...s];
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Chart instances
+════════════════════════════════════════════════════════════════════ */
+let barChartInst  = null;
+let lineChartInst = null;
+
+const CHART_DEFAULTS = {
+  grid:    '#2a2510',
+  tick:    '#7a7060',
+  tooltip: { bg: '#1a1710', title: '#c9a227', body: '#ede6d0' }
+};
+
+function chartTooltipPlugin() {
+  return {
+    backgroundColor: CHART_DEFAULTS.tooltip.bg,
+    titleColor:      CHART_DEFAULTS.tooltip.title,
+    bodyColor:       CHART_DEFAULTS.tooltip.body,
+    borderColor:     '#2a2510',
+    borderWidth:     1,
+    padding:         10,
+    cornerRadius:    8,
+  };
+}
+
+function chartScaleOpts(showX = true) {
+  return {
+    x: {
+      display: showX,
+      grid:  { color: CHART_DEFAULTS.grid },
+      ticks: { color: CHART_DEFAULTS.tick, font: { size: 11 } },
+    },
+    y: {
+      grid:  { color: CHART_DEFAULTS.grid },
+      ticks: { color: CHART_DEFAULTS.tick, font: { size: 11 } },
+      beginAtZero: false,
+    }
+  };
+}
+
+function renderBarChart(rankings) {
+  const labels = rankings.map(r => r.name);
+  const data   = rankings.map(r => r.elo);
+  const colors = rankings.map((_, i) => BAR_PALETTE[i % BAR_PALETTE.length]);
+
+  if (barChartInst) barChartInst.destroy();
+
+  const ctx = document.getElementById('barChart').getContext('2d');
+  barChartInst = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Total ELO',
+        data,
+        backgroundColor: colors,
+        borderColor:     colors.map(c => c.replace('.6)', '1)')),
+        borderWidth: 1,
+        borderRadius: 5,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { ...chartTooltipPlugin(),
+          callbacks: {
+            label: ctx => ` ELO: ${ctx.parsed.y.toFixed(1)}`
+          }
+        }
+      },
+      scales: chartScaleOpts(),
+    }
+  });
+}
+
+function renderLineChart(eloByGame, rankings, sortedGames) {
+  const top5 = rankings.slice(0, 5).map(r => r.name);
+  const labels = sortedGames.map((g, i) => `Game ${i + 1} (${g.date})`);
+
+  // build cumulative ELO per player across games (null if not played yet)
+  const playerEloTimeline = {};
+  for (const name of top5) playerEloTimeline[name] = [];
+
+  // We need to replay cumulative state per snap index
+  const acc = {};
+  for (let i = 0; i < sortedGames.length; i++) {
+    const game = sortedGames[i];
+    const played = new Set(game.players.map(p => p.name));
+    for (const p of game.players) {
+      if (!acc[p.name]) acc[p.name] = { sumAmt: 0, count: 0 };
+      acc[p.name].sumAmt += p.endAmt;
+      acc[p.name].count  += 1;
+    }
+    for (const name of top5) {
+      if (acc[name] && played.has(name)) {
+        const elo = (acc[name].sumAmt + STANDARD_BUY_IN) / (acc[name].count + 1);
+        playerEloTimeline[name].push(+elo.toFixed(1));
+      } else {
+        playerEloTimeline[name].push(null);
+      }
+    }
+  }
+
+  const datasets = top5.map((name, i) => ({
+    label:           name,
+    data:            playerEloTimeline[name],
+    borderColor:     LINE_COLORS[i],
+    backgroundColor: LINE_COLORS[i] + '22',
+    pointBackgroundColor: LINE_COLORS[i],
+    pointRadius:     4,
+    pointHoverRadius:6,
+    tension:         0.35,
+    spanGaps:        true,
+    fill:            false,
+    borderWidth:     2,
+  }));
+
+  if (lineChartInst) lineChartInst.destroy();
+
+  const ctx = document.getElementById('lineChart').getContext('2d');
+  lineChartInst = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: true,
+          labels: { color: CHART_DEFAULTS.tick, font: { size: 11 }, boxWidth: 14, padding: 14 }
+        },
+        tooltip: { ...chartTooltipPlugin(),
+          callbacks: {
+            label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y !== null ? ctx.parsed.y.toFixed(1) : 'N/A'}`
+          }
+        }
+      },
+      scales: chartScaleOpts(),
+    }
+  });
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Render UI
+════════════════════════════════════════════════════════════════════ */
+function formatDate(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function renderLeaderboard(rankings) {
+  const medals = ['🥇','🥈','🥉'];
+  const maxElo = rankings[0]?.elo || 1;
+  const el = document.getElementById('leaderboard');
+
+  el.innerHTML = rankings.map((r, i) => {
+    const rankDisplay = i < 3
+      ? `<span class="lb-rank medal">${medals[i]}</span>`
+      : `<span class="lb-rank">${i + 1}</span>`;
+    const pct = ((r.elo / maxElo) * 100).toFixed(1);
+    return `
+      <div class="lb-row">
+        ${rankDisplay}
+        <div class="lb-info">
+          <span class="lb-name">${escHtml(r.name)}</span>
+          <div class="lb-bar-track"><div class="lb-bar-fill" style="width:${pct}%"></div></div>
+        </div>
+        <span class="lb-elo">${r.elo.toFixed(1)}</span>
+      </div>`;
+  }).join('');
+}
+
+function renderStats(games, rankings) {
+  document.getElementById('stat-games').textContent   = games.length;
+  document.getElementById('stat-players').textContent = Object.keys(
+    Object.fromEntries(allPlayers(games).map(n => [n, 1]))
+  ).length;
+
+  if (rankings.length > 0) {
+    document.getElementById('stat-top-player').textContent = rankings[0].name;
+    document.getElementById('stat-top-elo').textContent    = `ELO ${rankings[0].elo.toFixed(1)}`;
+  }
+}
+
+function renderGameCards(sortedGames, finalElo, eloByGame) {
+  const el = document.getElementById('game-list');
+  if (sortedGames.length === 0) {
+    el.innerHTML = '<div class="empty">No games yet. Add your first game!</div>';
+    return;
+  }
+
+  // show most recent first
+  const reversed = [...sortedGames].reverse();
+  const totalGames = sortedGames.length;
+
+  // Re-build game-level ELO snapshot: for each game in sorted order, what was the ELO after it?
+  // eloByGame is already in sorted order; we need to map sortedGames index <-> reversed index
+  el.innerHTML = reversed.map((game, ri) => {
+    const gameIndex  = totalGames - 1 - ri;          // index in sorted order
+    const gameNumber = gameIndex + 1;
+    const snap       = eloByGame[gameIndex].playerElos; // {name->elo} after this game
+
+    const sorted_players = [...game.players].sort((a, b) => b.endAmt - a.endAmt);
+    const winner = sorted_players[0];
+
+    const rows = sorted_players.map(p => {
+      const ratio = (p.endAmt / STANDARD_BUY_IN).toFixed(3);
+      const elo   = snap[p.name] !== undefined ? snap[p.name].toFixed(1) : '—';
+      const amtClass = p.endAmt >= STANDARD_BUY_IN ? 'amt-gold'
+                     : p.endAmt === 0             ? 'amt-red'
+                     :                              'amt-white';
+      const isWinner = p.name === winner.name && p.endAmt > 0;
+      return `
+        <tr>
+          <td>
+            <div class="td-player">
+              ${escHtml(p.name)}
+              ${isWinner ? '<span class="winner-badge">winner</span>' : ''}
+            </div>
+          </td>
+          <td class="${amtClass}">$${p.endAmt.toLocaleString()}</td>
+          <td>${ratio}x</td>
+          <td>${elo}</td>
+        </tr>`;
+    }).join('');
+
+    const isFirst = ri === 0;
+    return `
+      <div class="game-card">
+        <div class="game-card-header" onclick="toggleCard(this)">
+          <div class="game-card-title">
+            <span class="game-number">Game ${gameNumber}</span>
+            <span class="player-count">${game.players.length} players</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span class="date-badge">${formatDate(game.date)}</span>
+            <span class="toggle-arrow ${isFirst ? 'open' : ''}">▼</span>
+          </div>
+        </div>
+        <div class="game-card-body ${isFirst ? 'open' : ''}">
+          <table>
+            <thead>
+              <tr>
+                <th>Player</th>
+                <th>End Amt</th>
+                <th>ELO Ratio</th>
+                <th>Total ELO</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function renderDatalist(games) {
+  const names = allPlayers(games);
+  document.getElementById('player-list').innerHTML =
+    names.map(n => `<option value="${escHtml(n)}">`).join('');
+}
+
+function refreshDashboard() {
+  const games = loadGames();
+  const { finalElo, eloByGame, sortedGames } = computeELO(games);
+  const rankings = buildRankings(finalElo);
+
+  renderStats(games, rankings);
+  renderLeaderboard(rankings);
+  renderBarChart(rankings);
+  renderGameCards(sortedGames, finalElo, eloByGame);
+  renderLineChart(eloByGame, rankings, sortedGames);
+  renderDatalist(games);
+  updateClock();
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   UI Helpers
+════════════════════════════════════════════════════════════════════ */
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;');
+}
+
+function switchTab(tabId, btn) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tab-' + tabId).classList.add('active');
+}
+
+function toggleCard(header) {
+  const body  = header.nextElementSibling;
+  const arrow = header.querySelector('.toggle-arrow');
+  body.classList.toggle('open');
+  arrow.classList.toggle('open');
+}
+
+function updateClock() {
+  const now = new Date();
+  const hh  = String(now.getHours()).padStart(2, '0');
+  const mm  = String(now.getMinutes()).padStart(2, '0');
+  document.getElementById('clock').textContent = `Last updated ${hh}:${mm}`;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Modal
+════════════════════════════════════════════════════════════════════ */
+function openModal() {
+  const today = new Date().toISOString().slice(0, 10);
+  document.getElementById('game-date').value = today;
+  document.getElementById('player-rows').innerHTML = '';
+  hideError();
+  addPlayerRow();
+  addPlayerRow();
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('open');
+}
+
+function overlayClick(e) {
+  if (e.target === document.getElementById('modal-overlay')) closeModal();
+}
+
+function addPlayerRow() {
+  const row = document.createElement('div');
+  row.className = 'player-row';
+  row.innerHTML = `
+    <input type="text" class="form-input player-name" placeholder="Player name" list="player-list" autocomplete="off" />
+    <input type="number" class="form-input player-amt" placeholder="End amount" min="0" step="1" />
+    <button class="btn btn-danger" onclick="removePlayerRow(this)" title="Remove">✕</button>`;
+  document.getElementById('player-rows').appendChild(row);
+}
+
+function removePlayerRow(btn) {
+  const rows = document.getElementById('player-rows');
+  if (rows.children.length <= 2) return showError('Minimum 2 players required.');
+  btn.closest('.player-row').remove();
+  hideError();
+}
+
+function showError(msg) {
+  const el = document.getElementById('form-error');
+  el.textContent = msg;
+  el.classList.add('visible');
+}
+
+function hideError() {
+  document.getElementById('form-error').classList.remove('visible');
+}
+
+function saveGame() {
+  const date = document.getElementById('game-date').value.trim();
+  if (!date) return showError('Please select a date.');
+
+  const rows = document.querySelectorAll('#player-rows .player-row');
+  const players = [];
+  let valid = true;
+
+  for (const row of rows) {
+    const name = row.querySelector('.player-name').value.trim();
+    const amtRaw = row.querySelector('.player-amt').value.trim();
+    if (!name && !amtRaw) continue; // skip blank rows
+    if (!name) { valid = false; showError('Each player row needs a name.'); break; }
+    if (amtRaw === '') { valid = false; showError(`Enter ending amount for ${name}.`); break; }
+    const amt = parseFloat(amtRaw);
+    if (isNaN(amt) || amt < 0) { valid = false; showError(`Invalid amount for ${name}.`); break; }
+    players.push({ name, endAmt: Math.round(amt) });
+  }
+
+  if (!valid) return;
+  if (players.length < 2) return showError('Add at least 2 players.');
+
+  const games = loadGames();
+  const newId = 'game_' + Date.now();
+  games.push({ id: newId, date, players });
+  saveGames(games);
+  closeModal();
+  refreshDashboard();
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Init
+════════════════════════════════════════════════════════════════════ */
+document.addEventListener('DOMContentLoaded', () => {
+  refreshDashboard();
+  setInterval(updateClock, 60000);
+});
+</script>
+</body>
+</html>
