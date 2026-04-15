@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Sun House Poker — ELO Rankings</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <style>
     /* ── Reset & Base ─────────────────────────────────────────────────── */
@@ -575,10 +576,279 @@
       padding: 40px 0;
       font-size: .9rem;
     }
+
+    /* ── Setup Modal (full-screen) ────────────────────────────────────── */
+    #setup-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: var(--bg);
+      z-index: 2000;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    #setup-overlay.open { display: flex; }
+
+    .setup-modal {
+      background: var(--card);
+      border: 1px solid var(--gold-muted);
+      border-radius: var(--radius-lg);
+      width: 100%;
+      max-width: 540px;
+      max-height: 92vh;
+      overflow-y: auto;
+      padding: 36px 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 22px;
+      box-shadow: 0 0 60px rgba(201,162,39,.12);
+    }
+
+    .setup-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .setup-header .sunflower-logo {
+      width: 46px;
+      height: 46px;
+      filter: drop-shadow(0 0 10px rgba(201,162,39,.5));
+      flex-shrink: 0;
+    }
+
+    .setup-title {
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: var(--gold);
+      text-shadow: 0 0 24px rgba(201,162,39,.3);
+    }
+
+    .setup-subtitle {
+      font-size: .7rem;
+      font-weight: 700;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .setup-desc {
+      font-size: .84rem;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .sql-block-wrap {
+      background: #111009;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      position: relative;
+    }
+
+    .sql-block-label {
+      font-size: .63rem;
+      font-weight: 700;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    .sql-block {
+      font-family: 'Menlo', 'Consolas', 'Monaco', monospace;
+      font-size: .75rem;
+      color: #a8c4a2;
+      line-height: 1.7;
+      white-space: pre;
+      overflow-x: auto;
+      margin: 0;
+    }
+
+    .sql-copy-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: var(--card2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--muted);
+      font-size: .7rem;
+      font-weight: 600;
+      padding: 4px 10px;
+      cursor: pointer;
+      transition: all .15s;
+      font-family: inherit;
+    }
+
+    .sql-copy-btn:hover { border-color: var(--gold-muted); color: var(--gold); }
+
+    .setup-error {
+      font-size: .78rem;
+      color: var(--red);
+      background: rgba(224,85,85,.08);
+      border: 1px solid rgba(224,85,85,.2);
+      border-radius: 7px;
+      padding: 8px 12px;
+      display: none;
+    }
+
+    .setup-error.visible { display: block; }
+
+    /* ── Loading overlay ──────────────────────────────────────────────── */
+    #loading-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(13,11,7,.7);
+      z-index: 1500;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 14px;
+      backdrop-filter: blur(2px);
+    }
+
+    #loading-overlay.open { display: flex; }
+
+    .loading-spinner {
+      width: 36px;
+      height: 36px;
+      border: 3px solid var(--gold-dim);
+      border-top-color: var(--gold);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .loading-text {
+      font-size: .82rem;
+      color: var(--gold);
+      letter-spacing: .08em;
+    }
+
+    /* ── Global error banner ──────────────────────────────────────────── */
+    #global-error {
+      display: none;
+      background: rgba(201,162,39,.06);
+      border: 1px solid var(--gold-muted);
+      border-radius: var(--radius);
+      color: var(--gold);
+      padding: 10px 16px;
+      font-size: .82rem;
+      margin-bottom: 16px;
+      position: relative;
+    }
+
+    #global-error.visible { display: flex; align-items: center; gap: 10px; }
+
+    #global-error button {
+      margin-left: auto;
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 1rem;
+      line-height: 1;
+      padding: 0 4px;
+      flex-shrink: 0;
+    }
   </style>
 </head>
 <body>
+<!-- ── Setup Modal (full-screen, shown before app if no credentials) ── -->
+<div id="setup-overlay">
+  <div class="setup-modal">
+    <div class="setup-header">
+      <svg class="sunflower-logo" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <g fill="#c9a227">
+          <ellipse cx="50" cy="18" rx="6" ry="13" transform="rotate(0 50 50)"/>
+          <ellipse cx="50" cy="18" rx="6" ry="13" transform="rotate(45 50 50)"/>
+          <ellipse cx="50" cy="18" rx="6" ry="13" transform="rotate(90 50 50)"/>
+          <ellipse cx="50" cy="18" rx="6" ry="13" transform="rotate(135 50 50)"/>
+          <ellipse cx="50" cy="18" rx="6" ry="13" transform="rotate(180 50 50)"/>
+          <ellipse cx="50" cy="18" rx="6" ry="13" transform="rotate(225 50 50)"/>
+          <ellipse cx="50" cy="18" rx="6" ry="13" transform="rotate(270 50 50)"/>
+          <ellipse cx="50" cy="18" rx="6" ry="13" transform="rotate(315 50 50)"/>
+        </g>
+        <g fill="#e0b840" opacity="0.7">
+          <ellipse cx="50" cy="22" rx="4" ry="10" transform="rotate(22.5 50 50)"/>
+          <ellipse cx="50" cy="22" rx="4" ry="10" transform="rotate(67.5 50 50)"/>
+          <ellipse cx="50" cy="22" rx="4" ry="10" transform="rotate(112.5 50 50)"/>
+          <ellipse cx="50" cy="22" rx="4" ry="10" transform="rotate(157.5 50 50)"/>
+          <ellipse cx="50" cy="22" rx="4" ry="10" transform="rotate(202.5 50 50)"/>
+          <ellipse cx="50" cy="22" rx="4" ry="10" transform="rotate(247.5 50 50)"/>
+          <ellipse cx="50" cy="22" rx="4" ry="10" transform="rotate(292.5 50 50)"/>
+          <ellipse cx="50" cy="22" rx="4" ry="10" transform="rotate(337.5 50 50)"/>
+        </g>
+        <circle cx="50" cy="50" r="18" fill="#3a2800"/>
+        <circle cx="50" cy="50" r="15" fill="#2a1e00"/>
+        <g fill="#c9a227" opacity="0.6">
+          <circle cx="50" cy="38" r="2"/><circle cx="44" cy="41" r="2"/>
+          <circle cx="56" cy="41" r="2"/><circle cx="40" cy="48" r="2"/>
+          <circle cx="50" cy="46" r="2"/><circle cx="60" cy="48" r="2"/>
+          <circle cx="44" cy="55" r="2"/><circle cx="56" cy="55" r="2"/>
+          <circle cx="50" cy="60" r="2"/>
+        </g>
+      </svg>
+      <div>
+        <div class="setup-title">Sun House Poker</div>
+        <div class="setup-subtitle">ELO Rankings Dashboard</div>
+      </div>
+    </div>
+
+    <p class="setup-desc">Connect a Supabase database so all players share the same live data across devices. Paste your project URL and anon key below.</p>
+
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div class="form-group">
+        <label class="form-label" for="setup-url">Supabase Project URL</label>
+        <input type="text" class="form-input" id="setup-url" placeholder="https://xxxx.supabase.co" />
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="setup-key">Supabase Anon Key</label>
+        <input type="text" class="form-input" id="setup-key" placeholder="eyJhbGci…" />
+      </div>
+    </div>
+
+    <div class="setup-error" id="setup-error"></div>
+
+    <button class="btn btn-primary" id="setup-connect-btn" onclick="connectSupabase()" style="align-self:flex-start;">Connect Database</button>
+
+    <div>
+      <div class="sql-block-label" style="margin-bottom:6px;">Run this SQL in Supabase first (SQL Editor → New Query)</div>
+      <div class="sql-block-wrap">
+        <button class="sql-copy-btn" onclick="copySql(this)">Copy</button>
+        <pre class="sql-block" id="setup-sql">create table games (
+  id text primary key,
+  date text not null,
+  players jsonb not null,
+  created_at timestamptz default now()
+);
+alter table games enable row level security;
+create policy "Public read" on games for select using (true);
+create policy "Public insert" on games for insert with check (true);
+create policy "Public delete" on games for delete using (true);</pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Loading overlay ────────────────────────────────────────────── -->
+<div id="loading-overlay">
+  <div class="loading-spinner"></div>
+  <span class="loading-text">Loading…</span>
+</div>
+
 <div class="container">
+
+  <!-- ── Global error banner ────────────────────────────────────────── -->
+  <div id="global-error">
+    <span id="global-error-msg"></span>
+    <button onclick="hideGlobalError()" title="Dismiss">✕</button>
+  </div>
 
   <!-- ── Header ─────────────────────────────────────────────────────── -->
   <header>
@@ -631,7 +901,7 @@
     </div>
     <div class="header-right">
       <span class="clock" id="clock">Last updated —</span>
-      <button class="btn btn-ghost" onclick="refreshDashboard()">↺ Refresh</button>
+      <button class="btn btn-ghost" onclick="handleRefresh()">↺ Refresh</button>
       <button class="btn btn-primary" onclick="openModal()">+ Add Game</button>
     </div>
   </header>
@@ -727,7 +997,7 @@
    Data & Constants
 ════════════════════════════════════════════════════════════════════ */
 const STANDARD_BUY_IN = 480;
-const STORAGE_KEY = 'sunhouse_poker_games_v2';
+const SUPABASE_CONFIG_KEY = 'sunhouse_supabase_config';
 
 const SEED_GAMES = [
   {
@@ -773,21 +1043,142 @@ const BAR_PALETTE = [
 ];
 
 /* ════════════════════════════════════════════════════════════════════
-   Storage
+   Supabase / Global State
 ════════════════════════════════════════════════════════════════════ */
-function loadGames() {
+let supabaseClient = null;
+let GAMES_CACHE = [];
+
+function getSupabaseConfig() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(SUPABASE_CONFIG_KEY);
     if (raw) return JSON.parse(raw);
   } catch(e) {}
-  // seed
-  const games = SEED_GAMES.map(g => ({ ...g, players: g.players.map(p => ({ ...p })) }));
-  saveGames(games);
-  return games;
+  return null;
 }
 
-function saveGames(games) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(games));
+function saveSupabaseConfig(url, key) {
+  localStorage.setItem(SUPABASE_CONFIG_KEY, JSON.stringify({ url, key }));
+}
+
+async function syncGames() {
+  const { data, error } = await supabaseClient
+    .from('games')
+    .select('*')
+    .order('date');
+  if (error) throw error;
+  GAMES_CACHE = data.map(r => ({ id: r.id, date: r.date, players: r.players }));
+}
+
+function loadGames() {
+  return GAMES_CACHE;
+}
+
+async function initApp() {
+  const config = getSupabaseConfig();
+  if (!config) {
+    showSetupModal();
+    return;
+  }
+  supabaseClient = supabase.createClient(config.url, config.key);
+  showLoading(true);
+  try {
+    await syncGames();
+    refreshDashboard();
+  } catch(e) {
+    showGlobalError('Failed to load games from Supabase: ' + e.message);
+  } finally {
+    showLoading(false);
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Setup Modal
+════════════════════════════════════════════════════════════════════ */
+function showSetupModal() {
+  document.getElementById('setup-overlay').classList.add('open');
+}
+
+function hideSetupModal() {
+  document.getElementById('setup-overlay').classList.remove('open');
+}
+
+async function connectSupabase() {
+  const url = document.getElementById('setup-url').value.trim();
+  const key = document.getElementById('setup-key').value.trim();
+  const errEl = document.getElementById('setup-error');
+  const btn = document.getElementById('setup-connect-btn');
+
+  errEl.classList.remove('visible');
+
+  if (!url || !key) {
+    errEl.textContent = 'Please enter both the Project URL and Anon Key.';
+    errEl.classList.add('visible');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Connecting…';
+
+  try {
+    const client = supabase.createClient(url, key);
+    // Test connection
+    const { data, error } = await client.from('games').select('id').limit(1);
+    if (error) throw error;
+
+    // Success — save config and init
+    saveSupabaseConfig(url, key);
+    supabaseClient = client;
+
+    // Seed if empty
+    if (data.length === 0) {
+      const seedRows = SEED_GAMES.map(g => ({
+        id: g.id,
+        date: g.date,
+        players: g.players,
+      }));
+      const { error: seedErr } = await supabaseClient.from('games').insert(seedRows);
+      if (seedErr) throw seedErr;
+    }
+
+    hideSetupModal();
+    showLoading(true);
+    await syncGames();
+    refreshDashboard();
+  } catch(e) {
+    errEl.textContent = 'Connection failed: ' + (e.message || String(e));
+    errEl.classList.add('visible');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Connect Database';
+    showLoading(false);
+  }
+}
+
+function copySql(btn) {
+  const sql = document.getElementById('setup-sql').textContent;
+  navigator.clipboard.writeText(sql).then(() => {
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+  }).catch(() => {
+    btn.textContent = 'Failed';
+    setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+  });
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Loading & Error UI
+════════════════════════════════════════════════════════════════════ */
+function showLoading(on) {
+  document.getElementById('loading-overlay').classList.toggle('open', on);
+}
+
+function showGlobalError(msg) {
+  document.getElementById('global-error-msg').textContent = msg;
+  document.getElementById('global-error').classList.add('visible');
+}
+
+function hideGlobalError() {
+  document.getElementById('global-error').classList.remove('visible');
 }
 
 /* ════════════════════════════════════════════════════════════════════
@@ -1245,7 +1636,7 @@ function showToast(msg) {
   setTimeout(() => t.classList.remove('visible'), 3000);
 }
 
-function saveGame() {
+async function saveGame() {
   const date = document.getElementById('game-date').value.trim();
   if (!date) return showError('Please select a date.');
 
@@ -1278,27 +1669,49 @@ function saveGame() {
   if (!valid) return;
   if (players.length < 2) return showError('Add at least 2 players.');
 
-  const games = loadGames();
   const newId = 'game_' + Date.now();
-  games.push({ id: newId, date, players });
-  saveGames(games);
-
-  // Verify it actually persisted
-  const check = loadGames();
-  if (check.length !== games.length) {
-    return showError('Save failed — localStorage may be blocked. Try a different browser.');
+  try {
+    const { error } = await supabaseClient.from('games').insert([{
+      id: newId,
+      date,
+      players,
+    }]);
+    if (error) throw error;
+  } catch(e) {
+    return showError('Failed to save game: ' + e.message);
   }
 
   closeModal();
-  refreshDashboard();
-  showToast(`Game saved! ${players.length} players recorded.`);
+  showLoading(true);
+  try {
+    await syncGames();
+    refreshDashboard();
+    showToast(`Game saved! ${players.length} players recorded.`);
+  } catch(e) {
+    showGlobalError('Saved but failed to reload: ' + e.message);
+  } finally {
+    showLoading(false);
+  }
+}
+
+async function handleRefresh() {
+  hideGlobalError();
+  showLoading(true);
+  try {
+    await syncGames();
+    refreshDashboard();
+  } catch(e) {
+    showGlobalError('Refresh failed: ' + e.message);
+  } finally {
+    showLoading(false);
+  }
 }
 
 /* ════════════════════════════════════════════════════════════════════
    Init
 ════════════════════════════════════════════════════════════════════ */
 document.addEventListener('DOMContentLoaded', () => {
-  refreshDashboard();
+  initApp();
   setInterval(updateClock, 60000);
 });
 </script>
