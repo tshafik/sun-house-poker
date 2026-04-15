@@ -492,7 +492,47 @@
       display: grid;
       grid-template-columns: 1fr 130px 34px;
       gap: 8px;
-      align-items: center;
+      align-items: start;
+    }
+
+    .player-name-wrap { display: flex; flex-direction: column; gap: 4px; }
+
+    .player-name-new { display: none; }
+
+    .back-to-select {
+      background: none;
+      border: none;
+      color: var(--gold);
+      font-size: 11px;
+      cursor: pointer;
+      text-align: left;
+      padding: 0;
+      font-family: inherit;
+      opacity: 0.7;
+    }
+    .back-to-select:hover { opacity: 1; }
+
+    #toast {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: #1e1b0e;
+      border: 1px solid var(--gold);
+      color: var(--gold);
+      padding: 12px 24px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .25s, transform .25s;
+      z-index: 200;
+      white-space: nowrap;
+    }
+    #toast.visible {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
     }
 
     .modal-actions {
@@ -679,8 +719,8 @@
   </div>
 </div>
 
-<!-- ── datalist for autocomplete ──────────────────────────────────── -->
-<datalist id="player-list"></datalist>
+<!-- ── Toast ───────────────────────────────────────────────────────── -->
+<div id="toast"></div>
 
 <script>
 /* ════════════════════════════════════════════════════════════════════
@@ -1062,10 +1102,8 @@ function renderGameCards(sortedGames, finalElo, eloByGame) {
   }).join('');
 }
 
-function renderDatalist(games) {
-  const names = allPlayers(games);
-  document.getElementById('player-list').innerHTML =
-    names.map(n => `<option value="${escHtml(n)}">`).join('');
+function renderDatalist(_games) {
+  // No-op: player selection now uses <select> dropdowns built dynamically in addPlayerRow()
 }
 
 function refreshDashboard() {
@@ -1135,14 +1173,52 @@ function overlayClick(e) {
   if (e.target === document.getElementById('modal-overlay')) closeModal();
 }
 
+function buildPlayerOptions() {
+  const games = loadGames();
+  const names = allPlayers(games);
+  return `
+    <option value="">— Select player —</option>
+    ${names.map(n => `<option value="${escHtml(n)}">${escHtml(n)}</option>`).join('')}
+    <option value="__new__">+ New Player</option>`;
+}
+
 function addPlayerRow() {
   const row = document.createElement('div');
   row.className = 'player-row';
   row.innerHTML = `
-    <input type="text" class="form-input player-name" placeholder="Player name" list="player-list" autocomplete="off" />
-    <input type="number" class="form-input player-amt" placeholder="End amount" min="0" step="1" />
+    <div class="player-name-wrap">
+      <select class="form-input player-name-select" onchange="handlePlayerSelect(this)">
+        ${buildPlayerOptions()}
+      </select>
+      <input type="text" class="form-input player-name-new" placeholder="Enter new player name…" />
+    </div>
+    <input type="number" class="form-input player-amt" placeholder="End $" min="0" step="1" />
     <button class="btn btn-danger" onclick="removePlayerRow(this)" title="Remove">✕</button>`;
   document.getElementById('player-rows').appendChild(row);
+}
+
+function handlePlayerSelect(sel) {
+  const wrap = sel.closest('.player-name-wrap');
+  const newInput = wrap.querySelector('.player-name-new');
+  if (sel.value === '__new__') {
+    sel.style.display = 'none';
+    newInput.style.display = '';
+    newInput.focus();
+    if (!wrap.querySelector('.back-to-select')) {
+      const back = document.createElement('button');
+      back.type = 'button';
+      back.className = 'back-to-select';
+      back.textContent = '← pick existing player';
+      back.onclick = () => {
+        sel.value = '';
+        sel.style.display = '';
+        newInput.style.display = 'none';
+        newInput.value = '';
+        back.remove();
+      };
+      wrap.appendChild(back);
+    }
+  }
 }
 
 function removePlayerRow(btn) {
@@ -1162,6 +1238,13 @@ function hideError() {
   document.getElementById('form-error').classList.remove('visible');
 }
 
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('visible');
+  setTimeout(() => t.classList.remove('visible'), 3000);
+}
+
 function saveGame() {
   const date = document.getElementById('game-date').value.trim();
   if (!date) return showError('Please select a date.');
@@ -1171,9 +1254,20 @@ function saveGame() {
   let valid = true;
 
   for (const row of rows) {
-    const name = row.querySelector('.player-name').value.trim();
-    const amtRaw = row.querySelector('.player-amt').value.trim();
-    if (!name && !amtRaw) continue; // skip blank rows
+    const sel      = row.querySelector('.player-name-select');
+    const newInput = row.querySelector('.player-name-new');
+    const amtRaw   = row.querySelector('.player-amt').value.trim();
+
+    // Determine which name source is active
+    let name = '';
+    if (sel && sel.style.display !== 'none') {
+      name = sel.value.trim();
+      if (name === '__new__') name = ''; // shouldn't happen but guard
+    } else if (newInput) {
+      name = newInput.value.trim();
+    }
+
+    if (!name && !amtRaw) continue; // skip fully blank rows
     if (!name) { valid = false; showError('Each player row needs a name.'); break; }
     if (amtRaw === '') { valid = false; showError(`Enter ending amount for ${name}.`); break; }
     const amt = parseFloat(amtRaw);
@@ -1188,8 +1282,16 @@ function saveGame() {
   const newId = 'game_' + Date.now();
   games.push({ id: newId, date, players });
   saveGames(games);
+
+  // Verify it actually persisted
+  const check = loadGames();
+  if (check.length !== games.length) {
+    return showError('Save failed — localStorage may be blocked. Try a different browser.');
+  }
+
   closeModal();
   refreshDashboard();
+  showToast(`Game saved! ${players.length} players recorded.`);
 }
 
 /* ════════════════════════════════════════════════════════════════════
