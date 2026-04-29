@@ -1473,11 +1473,13 @@ async function updateGame() {
   if (players.length < 2) return showError('Add at least 2 players.');
 
   try {
-    const { error } = await supabaseClient
-      .from('games')
-      .update({ date, players })
-      .eq('id', editingGameId);
-    if (error) throw error;
+    // Delete old record then re-insert (avoids needing an UPDATE policy)
+    const { error: delErr } = await supabaseClient
+      .from('games').delete().eq('id', editingGameId);
+    if (delErr) throw delErr;
+    const { error: insErr } = await supabaseClient
+      .from('games').insert([{ id: editingGameId, date, players }]);
+    if (insErr) throw insErr;
   } catch(e) {
     return showError('Failed to update game: ' + e.message);
   }
