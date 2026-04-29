@@ -335,6 +335,20 @@
 
     .game-card-header:hover { background: rgba(201,162,39,.05); }
 
+    .btn-edit {
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      color: var(--muted);
+      font-size: 13px;
+      padding: 4px 10px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all .15s;
+      white-space: nowrap;
+    }
+    .btn-edit:hover { border-color: var(--gold); color: var(--gold); }
+
     .game-card-title {
       display: flex;
       align-items: center;
@@ -876,7 +890,7 @@
 <!-- ── Add Game Modal ─────────────────────────────────────────────── -->
 <div class="modal-overlay" id="modal-overlay" onclick="overlayClick(event)">
   <div class="modal">
-    <div class="modal-title">+ Add New Game</div>
+    <div class="modal-title" id="modal-title">+ Add New Game</div>
 
     <div class="form-group">
       <label class="form-label" for="game-date">Date</label>
@@ -893,7 +907,7 @@
 
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveGame()">Save Game</button>
+      <button class="btn btn-primary" id="modal-save-btn" onclick="saveGame()">Save Game</button>
     </div>
   </div>
 </div>
@@ -1312,6 +1326,7 @@ function renderGameCards(sortedGames, finalElo, eloByGame) {
     }).join('');
 
     const isFirst = ri === 0;
+    const gameIdSafe = escHtml(game.id);
     return `
       <div class="game-card">
         <div class="game-card-header" onclick="toggleCard(this)">
@@ -1319,9 +1334,10 @@ function renderGameCards(sortedGames, finalElo, eloByGame) {
             <span class="game-number">Game ${gameNumber}</span>
             <span class="player-count">${game.players.length} players</span>
           </div>
-          <div style="display:flex;align-items:center;gap:10px">
+          <div style="display:flex;align-items:center;gap:10px" onclick="event.stopPropagation()">
+            <button class="btn-edit" onclick="openEditModal('${gameIdSafe}')">✎ Edit</button>
             <span class="date-badge">${formatDate(game.date)}</span>
-            <span class="toggle-arrow ${isFirst ? 'open' : ''}">▼</span>
+            <span class="toggle-arrow ${isFirst ? 'open' : ''}" onclick="toggleCard(this.closest('.game-card-header'))">▼</span>
           </div>
         </div>
         <div class="game-card-body ${isFirst ? 'open' : ''}">
@@ -1394,7 +1410,13 @@ function updateClock() {
 /* ════════════════════════════════════════════════════════════════════
    Modal
 ════════════════════════════════════════════════════════════════════ */
+let editingGameId = null;
+
 function openModal() {
+  editingGameId = null;
+  document.getElementById('modal-title').textContent = '+ Add New Game';
+  document.getElementById('modal-save-btn').textContent = 'Save Game';
+  document.getElementById('modal-save-btn').onclick = saveGame;
   const today = new Date().toISOString().slice(0, 10);
   document.getElementById('game-date').value = today;
   document.getElementById('player-rows').innerHTML = '';
@@ -1402,6 +1424,75 @@ function openModal() {
   addPlayerRow();
   addPlayerRow();
   document.getElementById('modal-overlay').classList.add('open');
+}
+
+function openEditModal(gameId) {
+  const game = GAMES_CACHE.find(g => g.id === gameId);
+  if (!game) return;
+
+  editingGameId = gameId;
+  document.getElementById('modal-title').textContent = '✎ Edit Game';
+  document.getElementById('modal-save-btn').textContent = 'Save Changes';
+  document.getElementById('modal-save-btn').onclick = updateGame;
+  document.getElementById('game-date').value = game.date;
+  document.getElementById('player-rows').innerHTML = '';
+  hideError();
+
+  // Pre-fill one row per player
+  game.players.forEach(p => {
+    addPlayerRow();
+    const rows = document.querySelectorAll('#player-rows .player-row');
+    const last = rows[rows.length - 1];
+    last.querySelector('.player-name').value = p.name;
+    last.querySelector('.player-amt').value  = p.endAmt;
+  });
+
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+async function updateGame() {
+  const date = document.getElementById('game-date').value.trim();
+  if (!date) return showError('Please select a date.');
+
+  const rows = document.querySelectorAll('#player-rows .player-row');
+  const players = [];
+  let valid = true;
+
+  for (const row of rows) {
+    const name   = row.querySelector('.player-name').value.trim();
+    const amtRaw = row.querySelector('.player-amt').value.trim();
+    if (!name && !amtRaw) continue;
+    if (!name) { valid = false; showError('Each player row needs a name.'); break; }
+    if (amtRaw === '') { valid = false; showError(`Enter ending amount for ${name}.`); break; }
+    const amt = parseFloat(amtRaw);
+    if (isNaN(amt) || amt < 0) { valid = false; showError(`Invalid amount for ${name}.`); break; }
+    players.push({ name, endAmt: Math.round(amt) });
+  }
+
+  if (!valid) return;
+  if (players.length < 2) return showError('Add at least 2 players.');
+
+  try {
+    const { error } = await supabaseClient
+      .from('games')
+      .update({ date, players })
+      .eq('id', editingGameId);
+    if (error) throw error;
+  } catch(e) {
+    return showError('Failed to update game: ' + e.message);
+  }
+
+  closeModal();
+  showLoading(true);
+  try {
+    await syncGames();
+    refreshDashboard();
+    showToast('Game updated!');
+  } catch(e) {
+    showGlobalError('Saved but failed to reload: ' + e.message);
+  } finally {
+    showLoading(false);
+  }
 }
 
 function closeModal() {
