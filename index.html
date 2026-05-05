@@ -335,6 +335,21 @@
 
     .game-card-header:hover { background: rgba(201,162,39,.05); }
 
+    .lb-section-divider {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      border-top: 1px solid var(--border);
+      margin: 12px 0 10px;
+      padding-top: 12px;
+    }
+    .lb-section-divider span { font-weight: 400; text-transform: none; letter-spacing: 0; }
+
+    .lb-row-unqualified { opacity: 0.5; }
+    .lb-bar-dim { background: var(--muted) !important; }
+
     .btn-edit {
       background: transparent;
       border: 1px solid var(--border);
@@ -1071,23 +1086,34 @@ function computeELO(games) {
     eloByGame.push({ date: game.date, playerElos: snapshot });
   }
 
-  // final ELO = latest snapshot value for each player
+  // final ELO + games played count per player
   const finalElo = {};
   for (const snap of eloByGame) {
     for (const [name, elo] of Object.entries(snap.playerElos)) {
       finalElo[name] = elo;
     }
   }
+  // gamesPlayed = acc[name].count
+  const gamesPlayed = {};
+  for (const [name, data] of Object.entries(acc)) {
+    gamesPlayed[name] = data.count;
+  }
 
-  return { finalElo, eloByGame, sortedGames: sorted };
+  return { finalElo, gamesPlayed, eloByGame, sortedGames: sorted };
 }
 
 /* ════════════════════════════════════════════════════════════════════
    Derived stats
 ════════════════════════════════════════════════════════════════════ */
-function buildRankings(finalElo) {
+function buildRankings(finalElo, gamesPlayed, totalGames) {
+  const threshold = totalGames / 3;
   return Object.entries(finalElo)
-    .map(([name, elo]) => ({ name, elo }))
+    .map(([name, elo]) => ({
+      name,
+      elo,
+      gamesPlayed: gamesPlayed[name] || 0,
+      qualified: (gamesPlayed[name] || 0) >= threshold,
+    }))
     .sort((a, b) => b.elo - a.elo);
 }
 
@@ -1251,35 +1277,48 @@ function formatDate(dateStr) {
 
 function renderLeaderboard(rankings) {
   const medals = ['🥇','🥈','🥉'];
-  const maxElo = rankings[0]?.elo || 1;
+  const qualified   = rankings.filter(r => r.qualified);
+  const unqualified = rankings.filter(r => !r.qualified);
+  const maxElo = qualified[0]?.elo || rankings[0]?.elo || 1;
   const el = document.getElementById('leaderboard');
 
-  el.innerHTML = rankings.map((r, i) => {
-    const rankDisplay = i < 3
+  const makeRow = (r, i, dimmed = false) => {
+    const rankDisplay = !dimmed && i < 3
       ? `<span class="lb-rank medal">${medals[i]}</span>`
-      : `<span class="lb-rank">${i + 1}</span>`;
+      : `<span class="lb-rank">${dimmed ? '—' : i + 1}</span>`;
     const pct = ((r.elo / maxElo) * 100).toFixed(1);
     return `
-      <div class="lb-row">
+      <div class="lb-row${dimmed ? ' lb-row-unqualified' : ''}">
         ${rankDisplay}
         <div class="lb-info">
           <span class="lb-name">${escHtml(r.name)}</span>
-          <div class="lb-bar-track"><div class="lb-bar-fill" style="width:${pct}%"></div></div>
+          <div class="lb-bar-track"><div class="lb-bar-fill${dimmed ? ' lb-bar-dim' : ''}" style="width:${pct}%"></div></div>
         </div>
-        <span class="lb-elo">${r.elo.toFixed(1)}</span>
+        <div style="text-align:right">
+          <span class="lb-elo">${r.elo.toFixed(1)}</span>
+          <div style="font-size:10px;color:var(--muted);margin-top:1px">${r.gamesPlayed}G played</div>
+        </div>
       </div>`;
-  }).join('');
+  };
+
+  let html = qualified.map((r, i) => makeRow(r, i, false)).join('');
+
+  if (unqualified.length > 0) {
+    html += `<div class="lb-section-divider">Unqualified <span>(fewer than 1/3 of games played)</span></div>`;
+    html += unqualified.map((r, i) => makeRow(r, i, true)).join('');
+  }
+
+  el.innerHTML = html;
 }
 
 function renderStats(games, rankings) {
   document.getElementById('stat-games').textContent   = games.length;
-  document.getElementById('stat-players').textContent = Object.keys(
-    Object.fromEntries(allPlayers(games).map(n => [n, 1]))
-  ).length;
+  document.getElementById('stat-players').textContent = allPlayers(games).length;
 
-  if (rankings.length > 0) {
-    document.getElementById('stat-top-player').textContent = rankings[0].name;
-    document.getElementById('stat-top-elo').textContent    = `ELO ${rankings[0].elo.toFixed(1)}`;
+  const topQualified = rankings.find(r => r.qualified);
+  if (topQualified) {
+    document.getElementById('stat-top-player').textContent = topQualified.name;
+    document.getElementById('stat-top-elo').textContent    = `ELO ${topQualified.elo.toFixed(1)}`;
   }
 }
 
@@ -1363,8 +1402,8 @@ function renderDatalist(_games) {
 
 function refreshDashboard() {
   const games = loadGames();
-  const { finalElo, eloByGame, sortedGames } = computeELO(games);
-  const rankings = buildRankings(finalElo);
+  const { finalElo, gamesPlayed, eloByGame, sortedGames } = computeELO(games);
+  const rankings = buildRankings(finalElo, gamesPlayed, sortedGames.length);
 
   renderStats(games, rankings);
   renderLeaderboard(rankings);
