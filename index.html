@@ -1106,7 +1106,7 @@ function computeELO(games) {
    Derived stats
 ════════════════════════════════════════════════════════════════════ */
 function buildRankings(finalElo, gamesPlayed, totalGames) {
-  const threshold = totalGames / 4;
+  const threshold = 3;
   return Object.entries(finalElo)
     .map(([name, elo]) => ({
       name,
@@ -1304,7 +1304,7 @@ function renderLeaderboard(rankings) {
   let html = qualified.map((r, i) => makeRow(r, i, false)).join('');
 
   if (unqualified.length > 0) {
-    html += `<div class="lb-section-divider">Unqualified <span>(fewer than 1/4 of games played)</span></div>`;
+    html += `<div class="lb-section-divider">Unqualified <span>(fewer than 3 games played)</span></div>`;
     html += unqualified.map((r, i) => makeRow(r, i, true)).join('');
   }
 
