@@ -1200,7 +1200,7 @@ function renderBarChart(rankings) {
 }
 
 function renderLineChart(eloByGame, rankings, sortedGames) {
-  const top5 = rankings.slice(0, 5).map(r => r.name);
+  const top5 = rankings.filter(r => r.qualified).slice(0, 5).map(r => r.name);
   const labels = sortedGames.map((g, i) => `Game ${i + 1} (${g.date})`);
 
   // build cumulative ELO per player across games (null if not played yet)
